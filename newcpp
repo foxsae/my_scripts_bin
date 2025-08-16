@@ -1,16 +1,29 @@
+
 #!/bin/bash
-# Usage: newcpp <project_name>
+# Usage: newcpp <project_name> [clean]
 
 if [ -z "$1" ]; then
-  echo "Usage: newcpp <project_name>"
+  echo "Usage: newcpp <project_name> [clean]"
   exit 1
 fi
 
-mkdir -p "$1"/{src,include,tests,build,lib}
+PROJECT="$1"
+ACTION="$2"
 
-cat > "$1/CMakeLists.txt" <<EOF
+if [ "$ACTION" = "clean" ]; then
+  echo "Cleaning project '$PROJECT'..."
+  rm -rf "$PROJECT/build" "$PROJECT/out"
+  echo "Clean complete."
+  exit 0
+fi
+
+# Create project structure
+mkdir -p "$PROJECT"/{src,include,tests,build,lib}
+
+# Generate CMakeLists.txt
+cat > "$PROJECT/CMakeLists.txt" <<EOF
 cmake_minimum_required(VERSION 3.25)
-project($1 VERSION 0.1 LANGUAGES CXX)
+project($PROJECT VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,7 +32,6 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic")
 
 include_directories(include)
 
-# Collect all .cpp files in src/
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 if(SOURCES)
@@ -27,5 +39,17 @@ if(SOURCES)
 else()
     message(STATUS "No source files found in src/. Add .cpp files to build.")
 endif()
+
+# Generate compile_commands.json for LSP
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 EOF
 
+# Remove broken symlink if it exists
+if [ -L "$PROJECT/compile_commands.json" ] || [ -e "$PROJECT/compile_commands.json" ]; then
+  rm -f "$PROJECT/compile_commands.json"
+fi
+
+# Create a symlink to the build folder compile_commands.json
+ln -s "$PROJECT/build/compile_commands.json" "$PROJECT/compile_commands.json"
+
+echo "Project '$PROJECT' created successfully."

@@ -1,0 +1,31 @@
+#!/bin/bash
+# Usage: newcpp <project_name>
+
+if [ -z "$1" ]; then
+  echo "Usage: newcpp <project_name>"
+  exit 1
+fi
+
+mkdir -p "$1"/{src,include,tests,build,lib}
+
+cat > "$1/CMakeLists.txt" <<EOF
+cmake_minimum_required(VERSION 3.25)
+project($1 VERSION 0.1 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic")
+
+include_directories(include)
+
+# Collect all .cpp files in src/
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+if(SOURCES)
+    add_executable(\${PROJECT_NAME} \${SOURCES})
+else()
+    message(STATUS "No source files found in src/. Add .cpp files to build.")
+endif()
+EOF
+

@@ -1,0 +1,5 @@
+#!/bin/bash
+export WINEPREFIX="$HOME/.steam/steam/steamapps/compatdata/489830/pfx"
+export STEAM_COMPAT_CLIENT_INSTALL_PATH="$HOME/.steam/steam"
+export STEAM_COMPAT_DATA_PATH="$HOME/.steam/steam/steamapps/compatdata/489830"
+protontricks 489830 shell

@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # Usage: newcpp <project_name> [clean]
 
@@ -12,7 +11,7 @@ ACTION="$2"
 
 if [ "$ACTION" = "clean" ]; then
   echo "Cleaning project '$PROJECT'..."
-  rm -rf "$PROJECT/build" "$PROJECT/out"
+  rm -rf "$PROJECT/build" "$PROJECT/out" "$PROJECT/compile_commands.json"
   echo "Clean complete."
   exit 0
 fi
@@ -20,7 +19,7 @@ fi
 # Create project structure
 mkdir -p "$PROJECT"/{src,include,tests,build,lib}
 
-# Generate CMakeLists.txt
+# Generate CMakeLists.txt (expand project name dynamically)
 cat > "$PROJECT/CMakeLists.txt" <<EOF
 cmake_minimum_required(VERSION 3.25)
 project($PROJECT VERSION 0.1 LANGUAGES CXX)
@@ -32,15 +31,31 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic")
 
 include_directories(include)
 
+# Automatically collect all src files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
-
 if(SOURCES)
     add_executable(\${PROJECT_NAME} \${SOURCES})
 else()
-    message(STATUS "No source files found in src/. Add .cpp files to build.")
+    message(STATUS "No source files found in src/")
 endif()
 
-# Generate compile_commands.json for LSP
+# Catch2 setup
+find_package(Catch2 3.8.1 REQUIRED)
+include(CTest)
+include(Catch)
+
+# Collect all test files
+file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
+
+if(TEST_SOURCES)
+    # Exclude main.cpp from test linkage
+    list(FILTER SOURCES EXCLUDE REGEX "main.cpp$")
+    add_executable(tests \${TEST_SOURCES} \${SOURCES})
+    target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
+    catch_discover_tests(tests)
+endif()
+
+# Export compile commands for LSP
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 EOF
 
@@ -52,4 +67,54 @@ fi
 # Create a symlink to the build folder compile_commands.json
 ln -s "$PROJECT/build/compile_commands.json" "$PROJECT/compile_commands.json"
 
+# Create add.h
+cat > "$PROJECT/include/add.h" <<'EOF'
+#pragma once
+int add(int a, int b);
+EOF
+
+# Create add.cpp
+cat > "$PROJECT/src/add.cpp" <<'EOF'
+#include "add.h"
+int add(int a, int b) {
+    return a + b;
+}
+EOF
+
+# Create default main.cpp with random numbers
+cat > "$PROJECT/src/main.cpp" <<EOF
+#include <iostream>
+#include <random>
+#include "add.h"
+
+int main() {
+    std::cout << "Hello from $PROJECT!" << std::endl;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(1, 20);
+
+    int x = dist(gen);
+    int y = dist(gen);
+
+    std::cout << "Adding random numbers: " << x << " + " << y << " = " << add(x, y) << std::endl;
+    return 0;
+}
+EOF
+
+# Create default test file
+cat > "$PROJECT/tests/test_example.cpp" <<'EOF'
+#include <catch2/catch_test_macros.hpp>
+#include "add.h"
+
+TEST_CASE("add() works correctly", "[math]") {
+    REQUIRE(add(1, 1) == 2);
+    REQUIRE(add(2, 3) == 5);
+    REQUIRE(add(-1, 1) == 0);
+}
+EOF
+
 echo "Project '$PROJECT' created successfully."
+echo "To build & test:"
+echo "  cd $PROJECT && cmake -B build && cmake --build build && ctest --test-dir build"
+

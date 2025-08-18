@@ -1,0 +1,33 @@
+git clone https://luajit.org/git/luajit.git ~/Work/luajit-znver2
+
+cd ~/Work/luajit-znver2
+
+make CC="gcc -march=znver2 -mtune=znver2"
+
+make install PREFIX=$HOME/.local/luajit-znver2
+
+git clone https://github.com/neovim/neovim ~/Work/neovim-znver2
+
+cd ~/Work/neovim-znver2
+
+export LUA_PATH="$HOME/.local/luajit-znver2/share/luajit-2.1/?.lua;;"
+export LUA_CPATH="$HOME/.local/luajit-znver2/lib/?.so;;"
+
+mkdir build && cd build
+
+cmake .. \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_INSTALL_PREFIX=$HOME/.local/nvim-znver2 \
+  -DLUA_PRG=$HOME/.local/luajit-znver2/bin/luajit \
+  -DLUAJIT_LIBRARY=$HOME/.local/luajit-znver2/lib/libluajit-5.1.so \
+  -DLUAJIT_INCLUDE_DIR=$HOME/.local/luajit-znver2/include/luajit-2.1 \
+  -DCMAKE_C_FLAGS="-march=znver2 -mtune=znver2 -O2 -pipe -fno-plt -fexceptions -Wp,-D_FORTIFY_SOURCE=3 -Wformat -Werror=format-security -fstack-clash-protection -fcf-protection -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -g -flto=auto -fno-fat-lto-objects -Wall -Wextra -pedantic -Wno-unused-parameter -Wstrict-prototypes -std=gnu99 -Wshadow -Wconversion -Wvla -Wdouble-promotion -Wmissing-noreturn -Wmissing-format-attribute -Wmissing-prototypes -fsigned-char -fstack-protector-strong -Wno-conversion -fno-common -Wno-unused-result -Wimplicit-fallthrough -fdiagnostics-color=always"
+
+make -j$(nproc)
+make install
+
+export PATH=$HOME/.local/nvim-znver2/bin:$PATH
+
+nvim --version | grep LuaJIT
+
+

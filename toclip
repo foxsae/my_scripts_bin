@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 # file: toclip
-# toclip copies a given file (or piped input) to the system clipboard
+
+# avoid silent errors
+set -euo pipefail
+
+VERSION="0.7"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [file]
+Purpose: toclip copies a given file (or piped input) to the system clipboard
+Requires a clipboard: wl-clipboard, or xclip, or xsel
+Binary safe: preserves contents without modification
+
+Usage: $(basename "$0") [-p] [-h] [-V] [file]
+
+Options:
+  -V    Prints version
+  -h    Prints usage information
+  -p    Copy the file path instead of file contents
 
 Copies:
   • file contents if a file is given
@@ -12,37 +25,92 @@ Copies:
 
 Examples:
   $(basename "$0") notes.txt
+  $(basename "$0") -p notes.txt
+  echo "Hello there!" | $(basename "$0")
   cat notes.txt | $(basename "$0")
 EOF
 }
 
+
 # Choose clipboard tool
 if command -v wl-copy >/dev/null 2>&1; then
-  CLIP=(wl-copy)
+  CLIP_CMD=(wl-copy)
 elif command -v xclip >/dev/null 2>&1; then
-  CLIP=(xclip -selection clipboard)
+  CLIP_CMD=(xclip -selection clipboard -in)
 elif command -v xsel >/dev/null 2>&1; then
-  CLIP=(xsel --clipboard --input)
+  CLIP_CMD=(xsel --clipboard --input)
 else
   echo "Error: install wl-clipboard, xclip, or xsel." >&2
   exit 1
 fi
 
-copy_stdin() {
-  cat | "${CLIP[@]}"
-  echo "Input copied to clipboard."
+# readlink fallback for systems without realpath
+realpath_cmd() {
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$1"
+  else
+    readlink -f "$1"
+  fi
 }
 
+copy_stdin() {
+  if [ -p /dev/stdin ]; then
+    "${CLIP_CMD[@]}" < /dev/stdin
+    echo "Input copied to clipboard (empty input will result in nothing)."
+  else
+    echo "Error: stdin is not a pipe." >&2
+    exit 1
+  fi
+}
+
+copy_file() {
+  "${CLIP_CMD[@]}" < "$1"
+  echo "File contents copied to clipboard: '$1'"
+}
+
+copy_path() {
+  local fullpath
+  fullpath=$(realpath_cmd "$1")
+  echo -n "$fullpath" | "${CLIP_CMD[@]}"
+  echo "File path copied to clipboard: '$fullpath'"
+}
+
+COPY_PATH=false
+while getopts ":phV" opt; do
+  case $opt in
+    p)
+      COPY_PATH=true
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+    V)
+      echo "toclip version $VERSION"
+      exit 0
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+    esac
+  done
+
+shift "$((OPTIND -1))"
+
 # Case 1: no arguments, stdin provided
-if [[ $# -eq 0 && ! -t 0  ]]; then
+if [[ $# -eq 0 && ! -t 0 ]]; then
   copy_stdin
   exit 0
 fi
 
 # Case 2: file given as argument
-if [[ -f "$1" ]]; then
-  cat -- "$1" | "${CLIP[@]}"
-  echo "File contents copied to clipboard: $1"
+if [[ $# -ge 1 && -f "$1" ]]; then
+  if [ "$COPY_PATH" = true ]; then
+    copy_path "$1"
+  else
+    copy_file "$1"
+  fi
 else
   echo "Error: file not found: $1" >&2
   usage

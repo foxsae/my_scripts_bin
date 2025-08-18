@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# file: toclip
+# toclip copies a given file (or piped input) to the system clipboard
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [file]
+
+Copies:
+  • file contents if a file is given
+  • stdin if no file is given and stdin is piped
+
+Examples:
+  $(basename "$0") notes.txt
+  cat notes.txt | $(basename "$0")
+EOF
+}
+
+# Choose clipboard tool
+if command -v wl-copy >/dev/null 2>&1; then
+  CLIP=(wl-copy)
+elif command -v xclip >/dev/null 2>&1; then
+  CLIP=(xclip -selection clipboard)
+elif command -v xsel >/dev/null 2>&1; then
+  CLIP=(xsel --clipboard --input)
+else
+  echo "Error: install wl-clipboard, xclip, or xsel." >&2
+  exit 1
+fi
+
+copy_stdin() {
+  cat | "${CLIP[@]}"
+  echo "Input copied to clipboard."
+}
+
+# Case 1: no arguments, stdin provided
+if [[ $# -eq 0 && ! -t 0  ]]; then
+  copy_stdin
+  exit 0
+fi
+
+# Case 2: file given as argument
+if [[ -f "$1" ]]; then
+  cat -- "$1" | "${CLIP[@]}"
+  echo "File contents copied to clipboard: $1"
+else
+  echo "Error: file not found: $1" >&2
+  usage
+  exit 1
+fi
+
